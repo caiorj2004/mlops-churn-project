@@ -23,9 +23,9 @@ Seguindo o modelo de referência do curso (`ml-ops.org`), o projeto atravessa tr
 
 
 ## Visão Inicial da Estrutura do Projeto
-* mlops-churn-project/
+mlops-churn-project/
 ├── .github/
-│   └── workflows/        # CI/CD com GitHub Actions (Bloco 4)
+│   └── workflows/        # CI/CD com GitHub Actions
 ├── data/
 │   ├── raw/              # Dados brutos fixados pelo professor (versionados via DVC)
 │   ├── interim/          # Dados intermediários / limpos
@@ -34,7 +34,7 @@ Seguindo o modelo de referência do curso (`ml-ops.org`), o projeto atravessa tr
 ├── notebooks/            # Notebook inicial (a ser refatorado no Encontro 2)
 ├── src/                  # Código modular do projeto (.py)
 │   ├── __init__.py
-│   ├── data/             # Scripts de coleta e validação (Great Expectations/pandera)
+│   ├── data/             # Scripts de coleta e validação
 │   ├── features/         # Engenharia de atributos
 │   ├── models/           # Treinamento, tracking (MLflow) e inferência
 │   └── visualization/    # Gráficos e relatórios
