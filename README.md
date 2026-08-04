@@ -20,3 +20,28 @@ Seguindo o modelo de referência do curso (`ml-ops.org`), o projeto atravessa tr
 * **Orquestração:** Apache Airflow
 * **Serviço de Modelo:** FastAPI
 * **Automação:** GitHub Actions
+
+
+## Visão Inicial da Estrutura do Projeto
+* mlops-churn-project/
+├── .github/
+│   └── workflows/        # CI/CD com GitHub Actions (Bloco 4)
+├── data/
+│   ├── raw/              # Dados brutos fixados pelo professor (versionados via DVC)
+│   ├── interim/          # Dados intermediários / limpos
+│   └── processed/        # Dados prontos para treino
+├── docker/               # Dockerfiles específicos (Airflow, API, etc.)
+├── notebooks/            # Notebook inicial (a ser refatorado no Encontro 2)
+├── src/                  # Código modular do projeto (.py)
+│   ├── __init__.py
+│   ├── data/             # Scripts de coleta e validação (Great Expectations/pandera)
+│   ├── features/         # Engenharia de atributos
+│   ├── models/           # Treinamento, tracking (MLflow) e inferência
+│   └── visualization/    # Gráficos e relatórios
+├── tests/                # Testes unitários e de integração
+├── .dvc/                 # Configuração do DVC
+├── .gitignore
+├── docker-compose.yml    # Orquestração local (Airflow, MLflow, etc.)
+├── pyproject.toml        # Gerenciamento moderno de dependências
+├── README.md             # Documentação principal do repositório
+└── requirements.txt      # Dependências mínimas iniciais
