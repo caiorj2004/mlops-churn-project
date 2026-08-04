@@ -23,7 +23,7 @@ Seguindo o modelo de referência do curso (`ml-ops.org`), o projeto atravessa tr
 
 
 ## Visão Inicial da Estrutura do Projeto
-'''
+```
 mlops-churn-project/
 ├── .github/
 │   └── workflows/        # CI/CD com GitHub Actions
@@ -39,7 +39,6 @@ mlops-churn-project/
 │   ├── features/         # Engenharia de atributos
 │   ├── models/           # Treinamento, tracking (MLflow) e inferência
 │   └── visualization/    # Gráficos e relatórios
-'''
 ├── tests/                # Testes unitários e de integração
 ├── .dvc/                 # Configuração do DVC
 ├── .gitignore
@@ -47,3 +46,4 @@ mlops-churn-project/
 ├── pyproject.toml        # Gerenciamento moderno de dependências
 ├── README.md             # Documentação principal do repositório
 └── requirements.txt      # Dependências mínimas iniciais
+```
