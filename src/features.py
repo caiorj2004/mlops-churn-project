@@ -17,11 +17,10 @@ def process_features(df: pd.DataFrame):
     # Limpa valores nulos remanescentes
     df = df.dropna()
 
-    # Codifica variáveis categóricas para numérico
+    # Codifica TODAS as variáveis categóricas (object) para numérico
     le = LabelEncoder()
-    for c in df.columns:
-        if df[c].dtype == "object":
-            df[c] = le.fit_transform(df[c])
+    for c in df.select_dtypes(include=["object"]).columns:
+        df[c] = le.fit_transform(df[c])
 
     # Normalização das colunas numéricas
     if "MonthlyCharges" in df.columns:
