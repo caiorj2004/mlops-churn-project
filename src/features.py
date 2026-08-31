@@ -9,7 +9,7 @@ def process_features(df: pd.DataFrame):
 
     # Trata conversão e nulos de TotalCharges
     df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
-    df["TotalCharges"] = df["TotalCharges"].fillna(2200)
+    df["TotalCharges"] = df["TotalCharges"].fillna(df["TotalCharges"].median())
 
     # Criação de feature nova
     df["gasto_por_mes"] = df["TotalCharges"] / (df["tenure"] + 1)
