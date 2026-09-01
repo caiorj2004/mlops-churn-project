@@ -1,23 +1,28 @@
-from src.data import load_data
+from sklearn.model_selection import train_test_split
+from src.data import load_clean_data
+from src.evaluate import evaluate_model
 from src.features import process_features
 from src.models import train_model
-from src.evaluate import evaluate_model, save_model
-from src.config import TEST_SIZE
-from sklearn.model_selection import train_test_split
+
+
+def run():
+    print("1. Carregando e validando dados com Pandera...")
+    df = load_clean_data()
+
+    print("2. Processando features...")
+    X, y = process_features(df)
+
+    # Separação Treino e Teste (Evita Overfitting)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
+
+    print("3. Treinando modelo...")
+    model = train_model(X_train, y_train)
+
+    print("4. Avaliando modelo no conjunto de TESTE...")
+    evaluate_model(model, X_test, y_test)
+
 
 if __name__ == "__main__":
-    # 1. Carrega
-    df_raw = load_data()
-    
-    # 2. Processa features
-    X, y = process_features(df_raw)
-    
-    # 3. Divide treino e teste
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE)
-    
-    # 4. Treina
-    model = train_model(X_train, y_train)
-    
-    # 5. Avalia e Salva
-    evaluate_model(model, X_test, y_test)
-    save_model(model)
+    run()
