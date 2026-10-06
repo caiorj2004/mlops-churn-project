@@ -1,0 +1,13 @@
+stages:
+  treino_e_tuning:
+    cmd: python -m src.experiments
+    deps:
+      - data/raw/churn.csv
+      - src/experiments.py
+      - src/features.py
+      - src/data.py
+  
+  promover_modelo:
+    cmd: python -m src.register_model
+    deps:
+      - src/register_model.py
