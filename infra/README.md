@@ -83,7 +83,7 @@ python -m dvc pull                 # garante data/raw/churn.csv (o modelo é tre
 ## 5. Teste local (VS Code)
 ```powershell
 copy .env.example .env               # ajuste DB_HOST para o IP PÚBLICO da churn-db-host e a senha
-python -m src.model_trainer          # gera models/churn_pipeline.joblib
+python -m src.export_champion        # copia o @champion do MLflow para models/champion/
 python -m uvicorn src.api_v2:app --port 8000 --reload
 streamlit run app_churn_v2.py        # em outro terminal
 ```

@@ -13,7 +13,7 @@ O plano completo da disciplina está em [`grade-mlops-60h.md`](grade-mlops-60h.m
 1. [O dado e o problema](#1-o-dado-e-o-problema)
 2. [Arquitetura final (AWS, duas camadas)](#2-arquitetura-final-aws-duas-camadas)
 3. [Linha do tempo: o que cada etapa construiu](#3-linha-do-tempo-o-que-cada-etapa-construiu)
-4. [Os dois modelos do projeto](#4-os-dois-modelos-do-projeto)
+4. [Um modelo, do treino à produção](#4-um-modelo-do-treino-à-produção)
 5. [Estrutura do repositório](#5-estrutura-do-repositório)
 6. [Como executar](#6-como-executar)
 7. [Limitações conhecidas](#7-limitações-conhecidas)
@@ -163,7 +163,7 @@ As features são montadas com as **mesmas funções do treino**. Para `7015-DBER
 **app-churn-v1 · uma imagem Docker para front e backend, sem inferência.**
 *Pedido:* "Como sirvo um modelo de ML usando uma mesma imagem Docker para front e backend? Não faz inferência; apenas consulta resultados já existentes."
 *Entrega:*
-* `src/batch_scoring.py` pontua os 7.043 clientes reais em lote e grava `data/batch_predictions.parquet`.
+* `src/batch_scoring.py` aplica o `@champion` aos 7.043 clientes reais em lote e grava `data/batch_predictions.parquet`.
 * `src/api_lookup.py` (FastAPI) apenas consulta esse arquivo.
 * `app_churn_v1.py` (Streamlit) é a tela.
 * O `Dockerfile` + `supervisord.conf` juntam tudo num container.
@@ -180,27 +180,27 @@ As features são montadas com as **mesmas funções do treino**. Para `7015-DBER
 *Entrega:*
 * `infra/setup_db_ec2.sh` e `infra/db/init_customers.sql` sobem o Postgres e carregam o `churn.csv` bruto (`COPY 7043`).
 * `src/db.py` conecta via variáveis de ambiente.
-* `src/api_v2.py` passa a fazer `SELECT` no banco e o modelo calcula o score sobre o registro retornado.
+* `src/api_v2.py` passa a fazer `SELECT` no banco e o `@champion` calcula o score sobre o registro retornado (`GET /model-info` mostra a versão em uso).
 * `app_churn_v2.py` mostra o registro do banco, a previsão e o churn real.
 
-Resultado em produção: `7015-DBER` → 51,13 % (risco Médio), churn real `Yes`, `data_source: postgresql`.
+Resultado: `7015-DBER` → 47,16 %, classe 0 (risco Médio), churn real `Yes`, `data_source: postgresql`, modelo `churn-model` @champion (`rf-n200-d8`).
 
 ---
 
-## 4. Os dois modelos do projeto
+## 4. Um modelo, do treino à produção
 
-O projeto tem **dois artefatos de modelo**, ambos Random Forest treinados no mesmo `churn.csv`, mas com pré-processamentos diferentes:
+Todos os serviços do projeto usam **o mesmo modelo**: a versão do `churn-model` apontada pelo alias `@champion` no MLflow Model Registry (hoje, o run `rf-n200-d8`).
 
-| | Modelo `@champion` (MLflow) | `models/churn_pipeline.joblib` |
-| --- | --- | --- |
-| Onde nasce | `src/experiments.py` + `src/register_model.py` | `src/model_trainer.py`, executado **dentro do `docker build`** |
-| Pré-processamento | `src/features.py` (LabelEncoder + normalização manual) | `Pipeline` do scikit-learn com `OrdinalEncoder` |
-| Hiperparâmetros | 200 árvores, profundidade 8 | 200 árvores, profundidade 8 |
-| Avaliação | acurácia 0,7729 (teste 20 %) | acurácia 0,7736 · ROC-AUC 0,8224 (teste 20 %) |
-| Quem usa | API do MLflow (`src/main.py`) | apps da AWS (`api_lookup`, `api_v2`, `batch_scoring`) |
-| `7015-DBER` | classe 0 | classe 1 (51,13 %) |
+```text
+churn.csv (DVC) → src/experiments.py (grid MLflow) → src/register_model.py (@champion)
+               → src/export_champion.py (models/champion/) → docker build → ECR → EC2
+```
 
-**Por que a diferença:** as atividades de deploy na AWS pediam uma imagem autocontida, então o modelo passou a ser treinado no build da imagem em vez de baixado do Model Registry (que vive no `mlflow.db` local). Os dois modelos têm desempenho equivalente; a previsão para um cliente específico próximo da fronteira de decisão (51 %) pode divergir. Unificar o deploy no `@champion` é o próximo passo natural (seção 7).
+* **Contrato de features.** O modelo recebe números, mas os dados chegam como texto (`"Female"`, `"Month-to-month"`...). Cada run do grid salva no MLflow um `feature_contract.json` com o código de cada categoria e a ordem das colunas usadas no treino. A inferência (`src/features.py → features_for_inference`) aplica esse contrato, então um cliente vindo do PostgreSQL ou do formulário é transformado **exatamente** como no treino. Categoria fora do contrato (ex.: `Contract = "Vitalicio"`) é recusada com erro 422, sem chute.
+* **Exportação.** O Model Registry vive no `mlflow.db` local. Antes do build, `src/export_champion.py` copia para `models/champion/` o pacote MLflow Models da versão `@champion`, o contrato de features e um `champion_info.json` com versão, run, acurácia e linhagem (`data_md5` do DVC + `git_commit`). O `infra/deploy_ecr.ps1` faz isso automaticamente.
+* **Mesmo ambiente.** O MLflow salva com o modelo as versões exatas das bibliotecas do treino (`models/champion/requirements.txt`), e a imagem instala exatamente essas versões.
+* **Quem usa.** API do MLflow (`src/main.py`, carregando do registry), API da v2 (`src/api_v2.py`), lote da v1 (`src/batch_scoring.py`). Para `7015-DBER`, todos respondem probabilidade **0,4716** → classe 0 (risco Médio); o churn real desse cliente é `Yes`, um erro do modelo perto da fronteira de decisão.
+* **Verificação.** As probabilidades do lote foram comparadas com o `@champion` carregado direto do registry para os 7.043 clientes: diferença máxima de 0,0.
 
 ---
 
@@ -212,7 +212,8 @@ mlops-churn-project/
 ├── grade-mlops-60h.md         ← plano da disciplina (professor)
 ├── pyproject.toml / uv.lock   ← dependências travadas do container de treino (Encontros 2–3)
 ├── Dockerfile.treino          ← Encontro 3: imagem churn:0.1 que roda o run_pipeline.py
-├── requirements.txt           ← dependências das APIs/apps (Dockerfile, Dockerfile.api)
+├── requirements.txt           ← dependências do ambiente local de desenvolvimento (e do Dockerfile.api)
+├── requirements-app.txt       ← dependências extras da imagem da aplicação AWS (banco, Streamlit)
 ├── .env.example               ← modelo das variáveis de conexão com o banco (o .env real é ignorado)
 ├── .gitignore / .dvcignore
 │
@@ -237,12 +238,12 @@ mlops-churn-project/
 │   ├── register_model.py      ← Bloco 2: registry + alias @champion
 │   ├── test_champion.py       ← Bloco 2: consumo de models:/churn-model@champion
 │   ├── main.py                ← FastAPI servindo o @champion
-│   ├── model_trainer.py       ← AWS: treina o pipeline usado pelos apps (no docker build)
+│   ├── export_champion.py     ← exporta o @champion do registry para models/champion/ (antes do build)
 │   ├── batch_scoring.py       ← AWS v1: pontuação em lote → parquet
 │   ├── api_lookup.py          ← AWS v1: API de consulta ao parquet
 │   ├── api_v2.py              ← AWS v2: consulta no PostgreSQL + inferência online
 │   ├── db.py                  ← AWS v2: conexão com o PostgreSQL via variáveis de ambiente
-│   └── inference.py           ← AWS v2: preparo de features e scoring da API
+│   └── inference.py           ← AWS: carrega o @champion exportado e calcula as probabilidades
 │
 ├── streamlit_app.py           ← painel da API do @champion
 ├── docker-compose.yml         ← sobe API (Dockerfile.api) + painel (Dockerfile.streamlit)
@@ -309,7 +310,7 @@ streamlit run streamlit_app.py
 **app-churn-v2 (local, conectando no PostgreSQL da AWS)**
 ```powershell
 copy .env.example .env                   # preencha DB_HOST (IP público da churn-db-host) e DB_PASSWORD
-python -m src.model_trainer              # gera models/churn_pipeline.joblib
+python -m src.export_champion            # copia o @champion do registry para models/champion/
 python -m uvicorn src.api_v2:app --port 8000 --reload
 streamlit run app_churn_v2.py
 ```
@@ -320,9 +321,8 @@ streamlit run app_churn_v2.py
 
 ## 7. Limitações conhecidas
 
-* **Dependências das aplicações sem lock:** o container de treino usa versões travadas (`uv.lock`), mas o `requirements.txt` das APIs/apps declara apenas versões mínimas (`>=`).
+* **Dependências parcialmente travadas:** o container de treino (`uv.lock`) e as bibliotecas do modelo na imagem da AWS (`models/champion/requirements.txt`) têm versões exatas; o `requirements.txt` do ambiente local e o `requirements-app.txt` declaram versões mínimas (`>=`).
 * **Remote DVC local:** o remote aponta para uma pasta da máquina de casa (`C:/Users/Caio/dvc_remote`); em outra máquina, o `dvc pull` não encontra os dados e o `churn.csv` precisa ser copiado manualmente.
-* **Dois modelos (seção 4):** o deploy na AWS usa o modelo treinado no build, não o `@champion` do MLflow.
 * **Testes:** a validação de dados tem um script de quebra proposital (`test_schema.py`), mas o projeto ainda não tem uma suíte `pytest`.
 * **Etapas do plano não implementadas neste repositório:** orquestração com Airflow, CI/CD com GitHub Actions e monitoramento de drift com Evidently (previstos na `grade-mlops-60h.md`).
 * **IP público das EC2:** muda a cada parada/início das instâncias. A comunicação entre as máquinas usa o IP privado e não é afetada.

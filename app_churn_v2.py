@@ -10,6 +10,14 @@ st.set_page_config(page_title="App Churn v2 - Two-Tier", layout="wide")
 st.title("📊 Painel de Retenção de Clientes (v2)")
 st.caption("Arquitetura em duas camadas: aplicação + modelo numa EC2, PostgreSQL em Docker em outra EC2")
 
+
+def legenda_modelo(resposta: dict) -> str:
+    m = resposta.get("model") or {}
+    acc = m.get("test_accuracy")
+    acc_txt = f" · acurácia de teste {acc * 100:.2f}%" if acc is not None else ""
+    return f"Modelo: `{m.get('model_name')}` v{m.get('version')} {m.get('alias')} ({m.get('run_name')}){acc_txt}"
+
+
 # =========================================================================
 # BLOCO 1: CONSULTA POR CODIGO NO POSTGRESQL (camada de dados - 2a EC2)
 # =========================================================================
@@ -37,12 +45,15 @@ if btn_search:
                 m2.metric("Probabilidade", f"{data.get('churn_probability', 0.0) * 100:.2f}%")
                 m3.metric("Risco", data.get("risk_level", "N/A"))
                 m4.metric("Churn real (base)", data.get("actual_churn", "N/A"))
+                st.caption(legenda_modelo(data))
                 st.markdown("**Registro retornado pelo banco**")
                 st.dataframe([data.get("customer", {})], use_container_width=True)
                 with st.expander("Resposta completa da API (JSON)"):
                     st.json(data)
             elif res.status_code == 404:
                 st.warning(f"Cliente '{search_id}' nao encontrado no banco.")
+            elif res.status_code == 422:
+                st.error(f"Dado fora do contrato do modelo: {res.json().get('detail')}")
             elif res.status_code == 503:
                 st.error(f"Banco de dados indisponivel: {res.json().get('detail')}")
             else:
@@ -124,6 +135,7 @@ if btn_predict:
                 r1.metric("Classificacao do Modelo", "Risco de Churn (1)" if p_bin == 1 else "Retencao Estavel (0)")
                 r2.metric("Probabilidade Calculada", f"{p_prob:.2f}%")
                 r3.metric("Nivel de Risco", p_risk)
+                st.caption(legenda_modelo(result))
 
                 st.json(result)
             else:

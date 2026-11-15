@@ -21,12 +21,12 @@ Projeto prático da disciplina de **MLOps** (IESB, Ciência de Dados e IA) do Ca
 - Credenciais do banco ficam só no `.env` (local) ou `~/churn.env` (EC2). Ver `.env.example`.
 - O quadro desta atividade NÃO criou uma versão nova: o app continua sendo o app-churn-v2 (consulta por código + nova inferência); mudou só a infraestrutura. Versões são nomeadas pelo professor (v1 e v2 estavam escritas no quadro).
 - A tabela `customers` contém o `churn.csv` BRUTO; a consulta por código busca o cliente no banco e o modelo calcula o score na hora.
-- Há DOIS modelos: o `@champion` do MLflow (src/experiments.py + register_model.py, usado por src/main.py) e o `models/churn_pipeline.joblib` (src/model_trainer.py, treinado no docker build, usado pelos apps da AWS). Ver README seção 4.
+- UM modelo só: o `@champion` do MLflow. src/export_champion.py copia-o (com feature_contract.json e champion_info.json) para models/champion/, que a imagem AWS inclui. src/model_trainer.py foi removido. Ver README seção 4.
 - A v2 anterior (lookup em Parquet) fica no histórico do Git (commit `d20fdac`); a v1 (`app_churn_v1.py` + `src/api_lookup.py`) continua no repositório.
 
 ## Comandos úteis
 ```powershell
-python -m src.model_trainer                              # treina e salva models/churn_pipeline.joblib
+python -m src.export_champion                           # copia o @champion para models/champion/ (antes de rodar a API ou o build)
 python -m uvicorn src.api_v2:app --port 8000 --reload    # API
 streamlit run app_churn_v2.py                            # painel
 .\infra\deploy_ecr.ps1 -AwsProfile churn                 # build + push para o ECR

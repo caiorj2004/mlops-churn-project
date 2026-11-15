@@ -1,58 +1,42 @@
-﻿import os
-import joblib
-import numpy as np
-import pandas as pd
+"""Pontuacao em lote (app-churn-v1): aplica o @champion a todos os clientes reais.
+
+Gera data/batch_predictions.parquet, consultado pela API de lookup da v1
+(src/api_lookup.py), que nao faz inferencia: apenas le os resultados prontos.
+"""
+import os
 from datetime import datetime
 
+import numpy as np
+import pandas as pd
+
+from src.inference import ChampionModel, risk_level
+
 RAW_DATA_PATH = os.path.join("data", "raw", "churn.csv")
-MODEL_PATH = os.path.join("models", "churn_pipeline.joblib")
 OUTPUT_PARQUET_PATH = os.path.join("data", "batch_predictions.parquet")
 
 if not os.path.exists(RAW_DATA_PATH):
     raise FileNotFoundError(f"Base de dados real nao encontrada em {RAW_DATA_PATH}")
 
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Pipeline treinado nao encontrado em {MODEL_PATH}. Execute src/model_trainer.py primeiro.")
+champion = ChampionModel()
+print(f"--> Modelo: {champion.info['model_name']} v{champion.info['version']} @champion ({champion.info['run_name']})")
 
 print(f"--> Carregando dataset real ({RAW_DATA_PATH})...")
 df = pd.read_csv(RAW_DATA_PATH)
-id_col = "customer_id" if "customer_id" in df.columns else "customerID"
-df = df.rename(columns={id_col: "customer_id"})
-
-print(f"--> Carregando modelo serializado ({MODEL_PATH})...")
-pipeline = joblib.load(MODEL_PATH)
-
-# Preparacao e tipagem identica ao pipeline de treino
-df["TotalCharges"] = pd.to_numeric(df["TotalCharges"].replace(" ", np.nan), errors="coerce").fillna(0.0)
-df["tenure"] = pd.to_numeric(df["tenure"], errors="coerce").fillna(1)
-df["MonthlyCharges"] = pd.to_numeric(df["MonthlyCharges"], errors="coerce").fillna(0.0)
-df["gasto_por_mes"] = df["TotalCharges"] / df["tenure"].replace(0, 1)
-
-cat_features = [
-    "gender", "SeniorCitizen", "Partner", "Dependents", "PhoneService", 
-    "MultipleLines", "InternetService", "OnlineSecurity", "OnlineBackup", 
-    "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies", 
-    "Contract", "PaperlessBilling", "PaymentMethod"
-]
-
-for col in cat_features:
-    df[col] = df[col].astype(str)
 
 print(f"--> Executando inferencia em lote para {len(df)} clientes reais...")
-probs = pipeline.predict_proba(df)[:, 1]
-preds = (probs >= 0.5).astype(int)
+probs = champion.predict_proba(df.drop(columns=["customerID", "Churn"]))
 
-# Construcao da base consolidada para consulta (Lookup)
 results_df = pd.DataFrame({
-    "customer_id": df["customer_id"],
-    "churn_prediction": preds,
+    "customer_id": df["customerID"],
+    "churn_prediction": (probs >= 0.5).astype(int),
     "churn_probability": np.round(probs, 4),
-    "risk_level": np.where(probs >= 0.6, "Alto", np.where(probs >= 0.3, "Medio", "Baixo")),
+    "risk_level": [risk_level(p) for p in probs],
     "contract_type": df["Contract"],
     "monthly_charges": df["MonthlyCharges"],
-    "total_charges": df["TotalCharges"],
+    "total_charges": pd.to_numeric(df["TotalCharges"], errors="coerce").fillna(0.0),
     "tenure": df["tenure"].astype(int),
-    "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    "model_version": champion.info["version"],
+    "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 })
 
 os.makedirs(os.path.dirname(OUTPUT_PARQUET_PATH), exist_ok=True)

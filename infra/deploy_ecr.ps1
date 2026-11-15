@@ -24,6 +24,10 @@ $ImageFullName = "$EcrUri/$($RepoName):latest"
 
 if (-not (Test-Path "data/raw/churn.csv")) { throw "data/raw/churn.csv ausente. Rode 'python -m dvc pull' antes do build." }
 
+Write-Host "--> 0. Exportando o modelo @champion do MLflow Model Registry..." -ForegroundColor Cyan
+python -m src.export_champion
+if ($LASTEXITCODE -ne 0) { throw "Falha ao exportar o @champion. Rode src.experiments e src.register_model antes." }
+
 Write-Host "--> 1. Autenticando Docker no Amazon ECR ($Region)..." -ForegroundColor Cyan
 Invoke-Aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $EcrUri
 

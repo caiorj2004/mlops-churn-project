@@ -8,11 +8,12 @@ Mudanca desta atividade: o lookup por codigo do cliente deixa de ler o arquivo
 data/batch_predictions.parquet embutido na imagem e passa a executar uma query
 SQL na rede, no banco da segunda maquina. A inferencia online (POST /predict)
 continua igual a da v2.
+
+Modelo: o @champion do MLflow Model Registry, exportado para models/champion/
+(src/export_champion.py) e copiado para a imagem no docker build.
 """
-import os
 from typing import Optional
 
-import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -20,9 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.db import db_settings, get_engine
-from src.inference import prepare_features, score
-
-MODEL_PATH = os.path.join("models", "churn_pipeline.joblib")
+from src.inference import ChampionModel
 
 app = FastAPI(
     title="Servico de Churn (v2 - Two-Tier)",
@@ -30,11 +29,8 @@ app = FastAPI(
     version="2.1.0",
 )
 
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(
-        f"Artefato do modelo nao encontrado em {MODEL_PATH}. Execute `python -m src.model_trainer` primeiro."
-    )
-model_pipeline = joblib.load(MODEL_PATH)
+champion = ChampionModel()
+print(f"Modelo carregado: {champion.info['model_name']} v{champion.info['version']} @champion ({champion.info['run_name']})")
 
 # Colunas da tabela `customers` (mesmos nomes do churn.csv, com aspas no Postgres)
 CUSTOMER_COLUMNS = [
@@ -95,6 +91,7 @@ def root():
             "GET /customers/{customerID}": "registro do cliente no PostgreSQL",
             "GET /results/{customerID}": "registro do banco + score do modelo",
             "POST /predict": "inferencia online para cliente novo",
+            "GET /model-info": "versao, metricas e linhagem do modelo @champion",
             "GET /docs": "documentacao interativa (Swagger)",
         },
     }
@@ -110,7 +107,13 @@ def health():
         db["status"] = "connected"
     except Exception as exc:  # noqa: BLE001 - health deve sempre responder
         db["status"] = f"error: {exc.__class__.__name__}: {exc}".splitlines()[0]
-    return {"status": "online", "model_loaded": model_pipeline is not None, "database": db}
+    return {"status": "online", "model": champion.model_summary(), "database": db}
+
+
+@app.get("/model-info")
+def model_info():
+    """Metadados do @champion em uso: versao no registry, run, metricas e linhagem."""
+    return champion.info
 
 
 @app.get("/customers/{customer_id}")
@@ -123,17 +126,22 @@ def get_customer(customer_id: str):
 def get_customer_score(customer_id: str):
     """Busca o cliente no PostgreSQL e calcula o score do modelo sobre esse registro."""
     record = _fetch_customer(customer_id)
-    features = prepare_features(pd.DataFrame([record]))
-    result = score(model_pipeline, features)
+    entrada = {k: v for k, v in record.items() if k not in ("customerID", "Churn")}
+    try:
+        result = champion.score_one(entrada)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    total = pd.to_numeric(pd.Series([record["TotalCharges"]]), errors="coerce").fillna(0.0).iloc[0]
     return {
         "customer_id": record["customerID"],
         **result,
         "actual_churn": record["Churn"],
         "contract_type": record["Contract"],
         "monthly_charges": record["MonthlyCharges"],
-        "total_charges": float(features["TotalCharges"].iloc[0]),
+        "total_charges": float(total),
         "tenure": record["tenure"],
         "data_source": "postgresql",
+        "model": champion.model_summary(),
         "customer": record,
     }
 
@@ -145,7 +153,7 @@ def predict_churn(customer: CustomerPayload):
     if data["TotalCharges"] is None or data["TotalCharges"] <= 0:
         data["TotalCharges"] = float(data["tenure"] * data["MonthlyCharges"])
     try:
-        result = score(model_pipeline, prepare_features(pd.DataFrame([data])))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Erro na inferencia do modelo: {exc}") from exc
-    return {**result, "inference_type": "real_time_online"}
+        result = champion.score_one(data)
+    except ValueError as exc:  # categoria fora do contrato de features
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {**result, "inference_type": "real_time_online", "model": champion.model_summary()}

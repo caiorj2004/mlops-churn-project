@@ -1,4 +1,4 @@
-﻿import matplotlib
+import matplotlib
 matplotlib.use('Agg')  # Evita travamento da GUI/Tkinter durante autologging
 
 import mlflow
@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
 from src.data import load_clean_data
-from src.features import process_features
+from src.features import build_feature_contract, process_features
 from src.train_mlflow import get_dvc_md5, get_git_commit
 
 def run_grid():
@@ -19,6 +19,7 @@ def run_grid():
 
     print("Carregando e processando dados...")
     df = load_clean_data()
+    contrato = build_feature_contract(df)  # categorias + ordem das colunas do treino
     X, y = process_features(df)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
@@ -37,6 +38,9 @@ def run_grid():
                     "data_md5": get_dvc_md5(),
                     "git_commit": get_git_commit()
                 })
+                # Contrato de features salvo junto do modelo: a inferencia (APIs)
+                # codifica cada cliente exatamente como neste treino
+                mlflow.log_dict(contrato, "feature_contract.json")
 
                 model = RandomForestClassifier(
                     n_estimators=n, max_depth=depth, random_state=42
