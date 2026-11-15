@@ -85,6 +85,20 @@ class CustomerPayload(BaseModel):
     TotalCharges: Optional[float] = None
 
 
+@app.get("/")
+def root():
+    return {
+        "servico": "Churn API v3 (Two-Tier: app + PostgreSQL)",
+        "endpoints": {
+            "GET /health": "status do modelo e do banco",
+            "GET /customers/{customerID}": "registro do cliente no PostgreSQL",
+            "GET /results/{customerID}": "registro do banco + score do modelo",
+            "POST /predict": "inferencia online para cliente novo",
+            "GET /docs": "documentacao interativa (Swagger)",
+        },
+    }
+
+
 @app.get("/health")
 def health():
     cfg = db_settings()
