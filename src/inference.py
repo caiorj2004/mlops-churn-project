@@ -1,4 +1,4 @@
-"""Preparacao de features e scoring compartilhados pela API v3.
+"""Preparacao de features e scoring compartilhados pela API (src/api_v2.py).
 
 Replica exatamente o tratamento usado em src/model_trainer.py, para que um
 registro vindo do PostgreSQL chegue ao modelo no mesmo formato do treino.

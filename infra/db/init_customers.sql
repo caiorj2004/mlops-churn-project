@@ -1,4 +1,4 @@
--- Carga CSV -> PostgreSQL (camada de dados da v3, EC2 churn-db-host)
+-- Carga CSV -> PostgreSQL (camada de dados, EC2 churn-db-host)
 -- Mesmo DDL executado no container churn_postgres durante a aula.
 -- Os nomes de coluna ficam entre aspas para preservar o formato do churn.csv
 -- (customerID, SeniorCitizen, ...). TotalCharges fica como texto porque o CSV

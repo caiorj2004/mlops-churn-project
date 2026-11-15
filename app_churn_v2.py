@@ -1,42 +1,50 @@
-﻿import requests
+import os
+
+import requests
 import streamlit as st
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
-st.set_page_config(page_title="App Churn v2 - Hibrido", layout="wide")
+st.set_page_config(page_title="App Churn v2 - Two-Tier", layout="wide")
 
 st.title("📊 Painel de Retenção de Clientes (v2)")
-st.caption("Arquitetura Hibrida MLOps: Batch Lookup e Inferencia Online em Tempo Real")
+st.caption("Arquitetura em duas camadas: aplicação + modelo numa EC2, PostgreSQL em Docker em outra EC2")
 
 # =========================================================================
-# BLOCO 1: CONSULTA POR CODIGO (Batch Lookup - Legado v1)
+# BLOCO 1: CONSULTA POR CODIGO NO POSTGRESQL (camada de dados - 2a EC2)
 # =========================================================================
-st.subheader("🔍 1. Consulta de Cliente Existente (Base Pré-Computada)")
+st.subheader("🔍 1. Consulta de Cliente no Banco (PostgreSQL)")
 c_id_col, c_btn_col = st.columns([3, 1])
 
 with c_id_col:
-    search_id = st.text_input("Código do Cliente (customer_id)", value="7015-DBER", help="Ex: 7015-DBER, 7000-QFVW")
+    search_id = st.text_input("Código do Cliente (customerID)", value="7015-DBER", help="Ex: 7015-DBER, 7000-QFVW")
 with c_btn_col:
     st.write("")
     st.write("")
-    btn_search = st.button("Buscar Score", type="secondary", use_container_width=True)
+    btn_search = st.button("Buscar Cliente", type="secondary", use_container_width=True)
 
 if btn_search:
     if not search_id.strip():
         st.error("Informe um ID valido.")
     else:
         try:
-            res = requests.get(f"{API_URL}/results/{search_id.strip()}", timeout=5)
+            res = requests.get(f"{API_URL}/results/{search_id.strip()}", timeout=10)
             if res.status_code == 200:
                 data = res.json()
-                st.success(f"Score pre-computado encontrado para **{search_id}**")
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Classificacao", "Churn (1)" if data.get("churn_prediction") == 1 else "Nao Churn (0)")
+                st.success(f"Cliente **{search_id}** encontrado no PostgreSQL e avaliado pelo modelo")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Previsão do Modelo", "Churn (1)" if data.get("churn_prediction") == 1 else "Nao Churn (0)")
                 m2.metric("Probabilidade", f"{data.get('churn_probability', 0.0) * 100:.2f}%")
                 m3.metric("Risco", data.get("risk_level", "N/A"))
-                st.json(data)
+                m4.metric("Churn real (base)", data.get("actual_churn", "N/A"))
+                st.markdown("**Registro retornado pelo banco**")
+                st.dataframe([data.get("customer", {})], use_container_width=True)
+                with st.expander("Resposta completa da API (JSON)"):
+                    st.json(data)
             elif res.status_code == 404:
-                st.warning(f"Cliente '{search_id}' nao encontrado na base historica.")
+                st.warning(f"Cliente '{search_id}' nao encontrado no banco.")
+            elif res.status_code == 503:
+                st.error(f"Banco de dados indisponivel: {res.json().get('detail')}")
             else:
                 st.error(f"Erro {res.status_code}: {res.text}")
         except requests.exceptions.ConnectionError:
@@ -45,7 +53,7 @@ if btn_search:
 st.divider()
 
 # =========================================================================
-# BLOCO 2: NOVA INFERÊNCIA EM TEMPO REAL (Online Serving - v2)
+# BLOCO 2: NOVA INFERÊNCIA EM TEMPO REAL (Online Serving)
 # =========================================================================
 st.subheader("⚡ 2. Nova Inferência em Tempo Real (Simulação de Novo Cliente)")
 st.caption("Preencha os parametros abaixo para executar uma chamada ativa no modelo de Machine Learning:")
@@ -103,7 +111,7 @@ if btn_predict:
 
     with st.spinner("Enviando parametros e computando inferencia no modelo..."):
         try:
-            resp = requests.post(f"{API_URL}/predict", json=payload, timeout=5)
+            resp = requests.post(f"{API_URL}/predict", json=payload, timeout=10)
             if resp.status_code == 200:
                 result = resp.json()
                 st.success("Inferência executada com sucesso pelo classificador!")

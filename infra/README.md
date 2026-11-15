@@ -14,13 +14,15 @@ Este diretório reúne os scripts e artefatos para reproduzir a arquitetura do p
 
 ## 1. Evolução da arquitetura
 
-| Versão | Onde ficam os dados dos clientes | Infra |
-| --- | --- | --- |
-| v1 | `data/batch_predictions.parquet` embutido na imagem (só consulta) | 1 EC2 |
-| v2 | Parquet (consulta) + inferência online via `POST /predict` | 1 EC2 |
-| **v3** | **PostgreSQL em Docker numa 2ª EC2**; a API faz `SELECT` pela rede | **2 EC2** |
+| Etapa | App | Onde ficam os dados dos clientes | Infra |
+| --- | --- | --- | --- |
+| 1 | app-churn-v1 | `data/batch_predictions.parquet` embutido na imagem (só consulta, sem inferência) | 1 EC2 |
+| 2 | app-churn-v2 | Parquet (consulta) + inferência online via `POST /predict` | 1 EC2 |
+| **3** | **app-churn-v2** | **`churn.csv` bruto no PostgreSQL em Docker numa 2ª EC2**; a API faz `SELECT` pela rede | **2 EC2** |
 
-## 2. Topologia da v3 (duas camadas)
+A etapa 3 não cria uma versão nova do app: as funcionalidades da v2 continuam as mesmas (consulta por código + nova inferência), muda só a infraestrutura.
+
+## 2. Topologia em duas camadas (etapa 3)
 
 ```text
 [Cliente / Navegador]
@@ -31,8 +33,8 @@ Este diretório reúne os scripts e artefatos para reproduzir a arquitetura do p
 │  EC2 churn-app-host (role EC2-ECR-ReadRole)     EC2 churn-db-host            │
 │  ┌── container app-churn ────────────┐          ┌── container churn_postgres ┐│
 │  │ Supervisord                       │  SQL     │ PostgreSQL 15              ││
-│  │  ├─ Streamlit  :8501 (app_v3)     │  :5432   │ banco churn_db             ││
-│  │  └─ FastAPI    :8000 (api_v3) ────┼─────────►│ tabela customers (7.043)   ││
+│  │  ├─ Streamlit  :8501 (app_v2)     │  :5432   │ banco churn_db             ││
+│  │  └─ FastAPI    :8000 (api_v2) ────┼─────────►│ tabela customers (7.043)   ││
 │  │     + modelo RandomForest         │ IP priv. │ volume pgdata              ││
 │  └───────────────────────────────────┘          └────────────────────────────┘│
 │           ▲ docker pull (STS)                                                │
@@ -42,7 +44,7 @@ Este diretório reúne os scripts e artefatos para reproduzir a arquitetura do p
 
 As duas máquinas conversam pelo **IP privado** da VPC. A credencial do banco nunca vai para a imagem nem para o Git: entra no container em tempo de execução via `--env-file`.
 
-## 3. Endpoints da API v3 (`src/api_v3.py`)
+## 3. Endpoints da API (`src/api_v2.py`)
 
 | Método | Rota | O que faz |
 | --- | --- | --- |
@@ -55,7 +57,7 @@ Se o banco estiver fora do ar, as rotas de consulta respondem `503` e o `/predic
 
 ---
 
-## 4. Passo a passo de implantação da v3
+## 4. Passo a passo de implantação
 
 ### 4.1 Camada de dados (`churn-db-host`)
 1. EC2 `t3.micro` Ubuntu, mesma VPC da aplicação. Security Group com a porta **5432** liberada para o Security Group da aplicação (evite `0.0.0.0/0`).
@@ -82,8 +84,8 @@ python -m dvc pull                 # garante data/raw/churn.csv (o modelo é tre
 ```powershell
 copy .env.example .env               # ajuste DB_HOST para o IP PÚBLICO da churn-db-host e a senha
 python -m src.model_trainer          # gera models/churn_pipeline.joblib
-python -m uvicorn src.api_v3:app --port 8000 --reload
-streamlit run app_churn_v3.py        # em outro terminal
+python -m uvicorn src.api_v2:app --port 8000 --reload
+streamlit run app_churn_v2.py        # em outro terminal
 ```
 Para testar de fora da AWS, a regra da porta 5432 precisa aceitar o seu IP público.
 

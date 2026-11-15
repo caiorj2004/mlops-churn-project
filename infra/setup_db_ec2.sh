@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provisiona a camada de dados da v3 na EC2 churn-db-host:
+# Provisiona a camada de dados (arquitetura em duas camadas) na EC2 churn-db-host:
 # PostgreSQL 15 em Docker + carga do churn.csv real (CSV -> postgres).
 #
 # Uso (no terminal da churn-db-host, dentro do clone do repositorio):
