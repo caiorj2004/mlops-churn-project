@@ -1,4 +1,7 @@
-import pandera as pa
+try:
+    import pandera.pandas as pa  # import recomendado nas versoes novas do pandera
+except ImportError:
+    import pandera as pa  # versoes antigas (ex.: Python 3.8 do laboratorio)
 from pandera.typing import Series
 
 

@@ -1,0 +1,8 @@
+# Dependencias da imagem da aplicacao (Dockerfile): FastAPI + Streamlit + acesso ao PostgreSQL.
+# As versoes do modelo (mlflow, scikit-learn, pandas, numpy, fastapi, uvicorn...) vem travadas
+# do models/champion/requirements.txt, gerado pelo MLflow junto com o @champion.
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+streamlit>=1.30.0
+requests>=2.31.0
+pyarrow>=14.0.0

@@ -1,4 +1,4 @@
-﻿import os
+import os
 import requests
 import streamlit as st
 
@@ -10,9 +10,9 @@ st.title("📊 Painel de Predição de Churn - MLOps")
 st.markdown("Consulte previsões em tempo real e inspecione a governança do modelo **@champion**.")
 
 st.sidebar.header("Parâmetros de Entrada")
-customer_id = st.sidebar.text_input("Código do Cliente (customer_id)", value="7590-VHVEG")
+customer_id = st.sidebar.text_input("Código do Cliente (customer_id)", value="7015-DBER")
 
-usar_manual = st.sidebar.checkbox("Inserir atributos manualmente (Simulação)", value=False)
+usar_manual = st.sidebar.checkbox("Simular outros valores numéricos para este cliente", value=False)
 
 tenure, monthly, total = None, None, None
 if usar_manual:
@@ -63,13 +63,13 @@ if btn_consultar:
                             else:
                                 st.success(f"Classificação: **{label} (0)** - Baixo risco de cancelamento.")
                             
-                            st.caption(f"Origem dos dados: `{data.get('customer_source', 'N/A')}`")
+                            st.caption(f"Origem dos dados: `{data.get('customer_source', 'N/A')}` · Churn real na base: `{data.get('actual_churn', 'N/A')}`")
 
                     if "Métricas do Champion" in opcoes:
                         with col2:
                             st.subheader("Métricas do Modelo Ativo")
-                            acc = champion.get("test_accuracy", 0.0)
-                            st.metric(label="Acurácia de Teste (@champion)", value=f"{acc * 100:.2f}%")
+                            acc = champion.get("test_accuracy")
+                            st.metric(label="Acurácia de Teste (@champion)", value=f"{acc * 100:.2f}%" if acc is not None else "N/A")
                             st.info(f"Versão no Registry: **v{champion.get('version', 'N/A')}** | Tag: `{champion.get('alias', '@champion')}`")
 
                     if "Hiperparâmetros" in opcoes:
@@ -95,7 +95,7 @@ if btn_consultar:
                     """)
 
                 elif response.status_code == 404:
-                    st.warning(f"Cliente '{customer_id}' não encontrado na base. Marque a opção de inserção manual para simular.")
+                    st.warning(f"Cliente '{customer_id}' não encontrado na base. Use um customerID existente (ex.: 7015-DBER).")
                 elif response.status_code == 503:
                     st.error("O modelo @champion não está carregado na API.")
                 else:

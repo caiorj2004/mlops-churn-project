@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 
 from src.data import load_clean_data
 from src.evaluate import evaluate_model
-from src.features import process_features
+from src.features import build_feature_contract, process_features
 
 
 def get_dvc_md5(dvc_pointer_path: str = "data/raw/churn.csv.dvc") -> str:
@@ -37,6 +37,9 @@ def get_git_commit() -> str:
 
 
 def run_experiment():
+    # 0. Mesmo backend SQLite usado pelo grid, pelo registry e pela API
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
+
     # 1. Ativa o Autologging para Scikit-Learn
     mlflow.sklearn.autolog()
 
@@ -54,6 +57,7 @@ def run_experiment():
         df = load_clean_data()
 
         print("2. Processando features...")
+        mlflow.log_dict(build_feature_contract(df), "feature_contract.json")
         X, y = process_features(df)
 
         X_train, X_test, y_train, y_test = train_test_split(

@@ -11,6 +11,7 @@ def evaluate_model(model, X_test, y_test):
 
 def save_model(model, path=MODEL_PATH):
     """Serializa e salva o modelo treinado em disco."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
         pickle.dump(model, f)
     print(f"Modelo salvo com sucesso em: {path}")

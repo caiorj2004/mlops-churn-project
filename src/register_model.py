@@ -1,4 +1,4 @@
-﻿import mlflow
+import mlflow
 from mlflow.tracking import MlflowClient
 
 def promote_best_model():
@@ -7,7 +7,7 @@ def promote_best_model():
 
     runs = mlflow.search_runs(
         experiment_names=["churn-prediction"],
-        order_by=["metrics.test_accuracy DESC"]
+        order_by=["metrics.test_accuracy DESC", "attributes.start_time DESC"]  # empate: o run mais recente
     )
 
     if runs.empty:

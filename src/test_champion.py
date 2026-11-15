@@ -1,4 +1,6 @@
 import mlflow
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 import pandas as pd
 from src.data import load_clean_data
 from src.features import process_features
@@ -8,11 +10,11 @@ def test_production_model():
     # Consome o modelo pelo contrato universal (pyfunc)
     model = mlflow.pyfunc.load_model("models:/churn-model@champion")
 
-    print("2. Simulando novos dados de clientes...")
+    print("2. Preparando dados reais da base (mesmas features do treino)...")
     df = load_clean_data()
     X, _ = process_features(df)
     
-    # Isola 3 clientes fictícios
+    # Os 3 primeiros clientes reais da base
     clientes_novos = X.head(3)
 
     print("3. Executando inferência...")
