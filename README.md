@@ -80,7 +80,14 @@ A disciplina segue os **três pipelines do ml-ops.org** (Data, ML e Software Cod
 
 **Encontro 3 · Docker.**
 *Dor:* o projeto modular ainda dependia do ambiente de cada máquina.
-*Entrega:* o treino foi containerizado e rodado com volumes (`docker run -v ...`). Veja a ressalva na seção [7](#7-limitações-conhecidas): esse Dockerfile de treino não chegou a ser commitado. O `Dockerfile` atual da raiz é o da aplicação (AWS).
+*Entrega:* `Dockerfile.treino` empacota o pipeline modular numa imagem (`churn:0.1`) sobre a base oficial do `uv`. As dependências vêm do `pyproject.toml`, travadas no `uv.lock`, e são instaladas **antes** do código, para aproveitar o cache de camadas. O `churn.csv` não entra na imagem: chega por volume, e o modelo treinado sai pelo volume `models/`.
+
+```powershell
+docker build -f Dockerfile.treino -t churn:0.1 .
+docker run --rm -v "${PWD}/data:/app/data" -v "${PWD}/models:/app/models" churn:0.1
+```
+
+> Esse Dockerfile funcionou em aula, mas ficou de fora dos commits da época. Ele foi restaurado a partir do histórico, com um único acréscimo: o `pandera` nas dependências, porque o pipeline passou a validar os dados no Encontro 4. O `Dockerfile` da raiz é outro, o da aplicação na AWS.
 
 ### Bloco 1 — Data Pipeline
 
@@ -203,7 +210,9 @@ O projeto tem **dois artefatos de modelo**, ambos Random Forest treinados no mes
 mlops-churn-project/
 ├── README.md                  ← este documento
 ├── grade-mlops-60h.md         ← plano da disciplina (professor)
-├── requirements.txt           ← dependências Python
+├── pyproject.toml / uv.lock   ← dependências travadas do container de treino (Encontros 2–3)
+├── Dockerfile.treino          ← Encontro 3: imagem churn:0.1 que roda o run_pipeline.py
+├── requirements.txt           ← dependências das APIs/apps (Dockerfile, Dockerfile.api)
 ├── .env.example               ← modelo das variáveis de conexão com o banco (o .env real é ignorado)
 ├── .gitignore / .dvcignore
 │
@@ -269,6 +278,12 @@ pip install -r requirements.txt
 python -m dvc pull                       # baixa o churn.csv do remote DVC (veja a seção 7)
 ```
 
+**Pipeline modular dentro do container (Encontro 3)**
+```powershell
+docker build -f Dockerfile.treino -t churn:0.1 .
+docker run --rm -v "${PWD}/data:/app/data" -v "${PWD}/models:/app/models" churn:0.1
+```
+
 **Data Pipeline e pipeline modular**
 ```powershell
 python -m src.profiling                  # retrato do dataset
@@ -305,8 +320,7 @@ streamlit run app_churn_v2.py
 
 ## 7. Limitações conhecidas
 
-* **Dockerfile de treino (Encontro 3):** foi construído e executado localmente (imagem `churn:0.1`, com `uv`), mas o `Dockerfile`, o `pyproject.toml` e o `uv.lock` dessa etapa não foram commitados. O `Dockerfile` da raiz é o da aplicação AWS, que também treina o modelo durante o build.
-* **Dependências sem versão travada:** `requirements.txt` declara versões mínimas (`>=`), não um lock.
+* **Dependências das aplicações sem lock:** o container de treino usa versões travadas (`uv.lock`), mas o `requirements.txt` das APIs/apps declara apenas versões mínimas (`>=`).
 * **Remote DVC local:** o remote aponta para uma pasta da máquina de casa (`C:/Users/Caio/dvc_remote`); em outra máquina, o `dvc pull` não encontra os dados e o `churn.csv` precisa ser copiado manualmente.
 * **Dois modelos (seção 4):** o deploy na AWS usa o modelo treinado no build, não o `@champion` do MLflow.
 * **Testes:** a validação de dados tem um script de quebra proposital (`test_schema.py`), mas o projeto ainda não tem uma suíte `pytest`.

@@ -1,0 +1,12 @@
+[project]
+name = "churn"
+version = "0.1.0"
+description = "Pipeline de Churn MLOps"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "scikit-learn",
+    "uvicorn",
+    "fastapi",
+    "pandera",
+]

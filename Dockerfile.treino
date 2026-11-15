@@ -1,0 +1,22 @@
+# Encontro 3 - Docker: a camada de reprodutibilidade
+# Container de TREINO do projeto (o Dockerfile da raiz e o da aplicacao AWS).
+#
+# Build:  docker build -f Dockerfile.treino -t churn:0.1 .
+# Run:    docker run --rm -v "${PWD}/data:/app/data" -v "${PWD}/models:/app/models" churn:0.1
+#         (PowerShell; os volumes trazem o churn.csv para dentro e o modelo treinado para fora)
+
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+ENV UV_LINK_MODE=copy
+WORKDIR /app
+
+# Dependencias primeiro (camada cacheada): mudar um .py nao reinstala tudo
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+
+# Codigo do projeto
+COPY src/ ./src/
+COPY run_pipeline.py ./
+RUN uv sync --frozen
+
+# O churn.csv NAO entra na imagem: chega pelo volume /app/data (versionado pelo DVC)
+CMD ["uv", "run", "python", "run_pipeline.py"]
