@@ -37,6 +37,9 @@ def get_git_commit() -> str:
 
 
 def run_experiment():
+    # 0. Mesmo backend SQLite usado pelo grid, pelo registry e pela API
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
+
     # 1. Ativa o Autologging para Scikit-Learn
     mlflow.sklearn.autolog()
 

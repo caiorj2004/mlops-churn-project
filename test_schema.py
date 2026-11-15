@@ -1,24 +1,30 @@
-import pandas as pd
+"""Quebra de proposito do contrato de dados (Encontro 4).
+
+Pega 3 linhas REAIS do churn.csv (ja validas), adultera algumas celulas e
+confere que o ChurnSchema (pandera) barra exatamente essas adulteracoes.
+"""
+from pandera.errors import SchemaErrors
+
+from src.data import load_clean_data
 from src.schema import ChurnSchema
 
-print("=== INICIANDO TESTE DE VALIDAÇÃO DE DADOS (PANDERA) ===")
+print("=== TESTE DE QUEBRA DO CONTRATO DE DADOS (PANDERA) ===")
 
-# Criando um DataFrame propositalmente corrompido para testar o contrato
-df_corrompido = pd.DataFrame(
-    {
-        "tenure": [12, 999],  # ERRO 1: 999 violará le=72
-        "MonthlyCharges": [50.0, -15.0],  # ERRO 2: -15.0 violará ge=0
-        "TotalCharges": [600.0, 1000.0],
-        "Contract": ["Month-to-month", "Vitalicio"],  # ERRO 3: 'Vitalicio' violará isin
-        "Churn": ["No", "Yes"],
-    }
-)
+df = load_clean_data().head(3).copy()  # 3 clientes reais, ja aprovados pelo contrato
+print("\nLinhas reais usadas no teste:")
+print(df[["customerID", "tenure", "MonthlyCharges", "Contract", "Churn"]].to_string(index=False))
 
-print("\nTentando validar lote de dados corrompidos...")
+# Adulteracoes propositais (cada uma viola uma regra do ChurnSchema)
+df.loc[df.index[0], "tenure"] = 999                       # viola le=72
+df.loc[df.index[1], "MonthlyCharges"] = -15.0             # viola ge=18
+df.loc[df.index[2], "Contract"] = "Vitalicio"             # viola isin([...])
+df.loc[df.index[2], "customerID"] = df.loc[df.index[0], "customerID"]  # viola unique=True
 
+print("\nValidando o lote adulterado (lazy=True coleta todas as falhas)...")
 try:
-    ChurnSchema.validate(df_corrompido, lazy=True)
-    print("❌ ERRO: O Pandera falhou em barrar os dados corrompidos.")
-except Exception as e:
-    print("\n✅ SUCESSO: O Pandera capturou a quebra do contrato de dados.\n")
-    print(e)
+    ChurnSchema.validate(df, lazy=True)
+    print("ERRO: o pandera deixou passar dados invalidos.")
+except SchemaErrors as e:
+    falhas = e.failure_cases[["column", "check", "failure_case"]]
+    print("\nSUCESSO: o contrato barrou o lote. Falhas encontradas:")
+    print(falhas.to_string(index=False))
