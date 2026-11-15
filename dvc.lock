@@ -1,0 +1,28 @@
+schema: '2.0'
+stages:
+  treino_e_tuning:
+    cmd: python -m src.experiments
+    deps:
+    - path: data/raw/churn.csv
+      hash: md5
+      md5: d390bd07b5514a2256a2396993b8b0e3
+      size: 981685
+    - path: src/data.py
+      hash: md5
+      md5: f411d050244788058a679b20b165a7e1
+      size: 828
+    - path: src/experiments.py
+      hash: md5
+      md5: 6aea9244309c2e68912548e7d1e5542e
+      size: 2055
+    - path: src/features.py
+      hash: md5
+      md5: cf84201477a9e8062ace9fd398f6b829
+      size: 4481
+  promover_modelo:
+    cmd: python -m src.register_model
+    deps:
+    - path: src/register_model.py
+      hash: md5
+      md5: 846f1c45ff6c48f24c22d9684a252012
+      size: 1121
