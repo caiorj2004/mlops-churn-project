@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Deploy da camada de aplicacao (EC2 churn-app-host): baixa a imagem do ECR e
 # sobe o container unificado (FastAPI + Streamlit) apontando para o PostgreSQL.
 #
