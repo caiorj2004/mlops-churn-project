@@ -71,13 +71,21 @@ Se o banco estiver fora do ar, as rotas de consulta respondem `503` e o `/predic
 
 ### 4.2 Imagem da aplicação (máquina local, Windows)
 ```powershell
-python -m dvc pull                 # garante data/raw/churn.csv (o modelo é treinado no build)
-.\infra\deploy_ecr.ps1 -Region "us-east-2" -RepoName "app-churn-v1"
+python -m dvc pull                 # garante data/raw/churn.csv (usado pelo lote da v1 no build)
+.\infra\deploy_ecr.ps1 -AwsProfile churn   # exporta o @champion, faz o build e o push para o ECR
 ```
+Espere aparecer `Publicacao concluida com sucesso!` antes do passo 4.3: se a EC2 baixar a imagem antes do push terminar, ela recebe a versão anterior (confira o `Digest:` do pull).
 
 ### 4.3 Camada de aplicação (`churn-app-host`)
 1. Crie `~/churn.env` (modelo em `.env.example`) com `DB_HOST=<IP privado da churn-db-host>` e a senha.
-2. Rode `bash setup_ec2.sh`. O script sobe o container com `--env-file` e imprime o `/health`.
+2. Libere espaço (o disco tem ~7 GB), baixe o script da `main` e rode:
+   ```bash
+   sudo docker stop churn_app && sudo docker rm churn_app
+   sudo docker system prune -a -f
+   curl -sO https://raw.githubusercontent.com/caiorj2004/mlops-churn-project/main/infra/setup_ec2.sh
+   bash setup_ec2.sh
+   ```
+   O script sobe o container com `--env-file` e imprime o `/health`, que deve mostrar o modelo `@champion` e `records: 7043`.
 3. Acesse `http://<IP público da churn-app-host>:8501`.
 
 ## 5. Teste local (VS Code)
