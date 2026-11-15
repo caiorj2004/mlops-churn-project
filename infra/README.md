@@ -1,32 +1,91 @@
-# Infraestrutura e Implantação (MLOps Churn App v1)
+# Infraestrutura e Implantação (MLOps Churn App)
 
-Este diretório contém os artefatos de infraestrutura como código e scripts de automação necessários para reproduzir a arquitetura do projeto na AWS.
+Este diretório reúne os scripts e artefatos para reproduzir a arquitetura do projeto na AWS (região `us-east-2`).
+
+| Arquivo | Função |
+| --- | --- |
+| `deploy_ecr.ps1` | Build local da imagem e push para o Amazon ECR (executado no Windows) |
+| `iam_trust_ec2.json` | Trust policy da role `EC2-ECR-ReadRole` (EC2 lê o ECR sem chaves fixas) |
+| `setup_ec2.sh` | Deploy da **camada de aplicação** na EC2 `churn-app-host` |
+| `setup_db_ec2.sh` | Provisiona a **camada de dados** na EC2 `churn-db-host` (Postgres em Docker + carga do CSV) |
+| `db/init_customers.sql` | DDL da tabela `customers` + `\copy` do `churn.csv` (CSV → postgres) |
 
 ---
 
-## 1. Topologia da Arquitetura
+## 1. Evolução da arquitetura
+
+| Versão | Onde ficam os dados dos clientes | Infra |
+| --- | --- | --- |
+| v1 | `data/batch_predictions.parquet` embutido na imagem (só consulta) | 1 EC2 |
+| v2 | Parquet (consulta) + inferência online via `POST /predict` | 1 EC2 |
+| **v3** | **PostgreSQL em Docker numa 2ª EC2**; a API faz `SELECT` pela rede | **2 EC2** |
+
+## 2. Topologia da v3 (duas camadas)
 
 ```text
 [Cliente / Navegador]
-        │
-        ▼ (Porta 8501 - HTTP)
-┌── AWS EC2 (t3.micro - Ubuntu) ──────────────────────────────────────────┐
-│                                                                        │
-│   IAM Instance Profile: EC2-ECR-ReadRole (Sem chaves fixas em disco)  │
-│                                                                        │
-│   ┌── Docker Container (app-churn-v1) ──────────────────────────────┐  │
-│   │                                                                 │  │
-│   │   [Supervisord] (Gerenciador de Processos)                     │  │
-│   │      ├── [FastAPI]   : Porta interna 8000 (Lookup em Parquet)   │  │
-│   │      └── [Streamlit] : Porta exposta 8501 (Frontend interativo) │  │
-│   │                                                                 │  │
-│   │   Base de Dados: data/batch_predictions.parquet (7.043 registros)│
-│   └─────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────┘
-        ▲
-        │ docker pull (Autenticação temporária STS)
-┌───────┴──────────────┐
-│ Amazon ECR           │
-│ app-churn-v1:latest  │
-│ (Região: us-east-2)  │
-└──────────────────────┘
+        │  HTTP :8501
+        ▼
+┌── AWS (VPC padrão, us-east-2) ───────────────────────────────────────────────┐
+│                                                                              │
+│  EC2 churn-app-host (role EC2-ECR-ReadRole)     EC2 churn-db-host            │
+│  ┌── container app-churn ────────────┐          ┌── container churn_postgres ┐│
+│  │ Supervisord                       │  SQL     │ PostgreSQL 15              ││
+│  │  ├─ Streamlit  :8501 (app_v3)     │  :5432   │ banco churn_db             ││
+│  │  └─ FastAPI    :8000 (api_v3) ────┼─────────►│ tabela customers (7.043)   ││
+│  │     + modelo RandomForest         │ IP priv. │ volume pgdata              ││
+│  └───────────────────────────────────┘          └────────────────────────────┘│
+│           ▲ docker pull (STS)                                                │
+│     Amazon ECR app-churn-v1:latest                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+As duas máquinas conversam pelo **IP privado** da VPC. A credencial do banco nunca vai para a imagem nem para o Git: entra no container em tempo de execução via `--env-file`.
+
+## 3. Endpoints da API v3 (`src/api_v3.py`)
+
+| Método | Rota | O que faz |
+| --- | --- | --- |
+| GET | `/health` | Status do modelo e da conexão com o Postgres (com contagem de registros) |
+| GET | `/customers/{customerID}` | Consulta pura: registro do cliente como está no banco |
+| GET | `/results/{customerID}` | Busca o cliente no banco e calcula o score do modelo sobre ele |
+| POST | `/predict` | Inferência online para um cliente novo (não depende do banco) |
+
+Se o banco estiver fora do ar, as rotas de consulta respondem `503` e o `/predict` continua funcionando.
+
+---
+
+## 4. Passo a passo de implantação da v3
+
+### 4.1 Camada de dados (`churn-db-host`)
+1. EC2 `t3.micro` Ubuntu, mesma VPC da aplicação. Security Group com a porta **5432** liberada para o Security Group da aplicação (evite `0.0.0.0/0`).
+2. No terminal da máquina, clone o repositório e coloque o `churn.csv` real em `data/raw/`.
+3. Rode:
+   ```bash
+   export DB_PASSWORD='sua-senha'
+   bash infra/setup_db_ec2.sh
+   ```
+   Saída esperada: `COPY 7043`.
+
+### 4.2 Imagem da aplicação (máquina local, Windows)
+```powershell
+python -m dvc pull                 # garante data/raw/churn.csv (o modelo é treinado no build)
+.\infra\deploy_ecr.ps1 -Region "us-east-2" -RepoName "app-churn-v1"
+```
+
+### 4.3 Camada de aplicação (`churn-app-host`)
+1. Crie `~/churn.env` (modelo em `.env.example`) com `DB_HOST=<IP privado da churn-db-host>` e a senha.
+2. Rode `bash setup_ec2.sh`. O script sobe o container com `--env-file` e imprime o `/health`.
+3. Acesse `http://<IP público da churn-app-host>:8501`.
+
+## 5. Teste local (VS Code)
+```powershell
+copy .env.example .env               # ajuste DB_HOST para o IP PÚBLICO da churn-db-host e a senha
+python -m src.model_trainer          # gera models/churn_pipeline.joblib
+python -m uvicorn src.api_v3:app --port 8000 --reload
+streamlit run app_churn_v3.py        # em outro terminal
+```
+Para testar de fora da AWS, a regra da porta 5432 precisa aceitar o seu IP público.
+
+## 6. Custos
+Instâncias `t3.micro` consomem créditos enquanto estão **Executando**. Pare as duas ao final (`Estado da instância > Interromper`). Ao religar, o IP **público** muda, mas o **privado** se mantém, então o `DB_HOST` da aplicação continua válido.
