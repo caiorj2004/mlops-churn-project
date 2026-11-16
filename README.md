@@ -87,8 +87,6 @@ docker build -f Dockerfile.treino -t churn:0.1 .
 docker run --rm -v "${PWD}/data:/app/data" -v "${PWD}/models:/app/models" churn:0.1
 ```
 
-> Esse Dockerfile funcionou em aula, mas ficou de fora dos commits da época. Ele foi restaurado a partir do histórico, com um único acréscimo: o `pandera` nas dependências, porque o pipeline passou a validar os dados no Encontro 4. O `Dockerfile` da raiz é outro, o da aplicação na AWS.
-
 ### Bloco 1 — Data Pipeline
 
 **Encontro 4 · Profiling e validação de dados (Pandera).**
