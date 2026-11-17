@@ -174,7 +174,7 @@ As features são montadas com as **mesmas funções do treino**. Para `7015-DBER
 * `app_churn_v2.py` com os dois blocos.
 
 **app-churn-v2 em duas camadas (PostgreSQL).**
-*Pedido (quadro):* uma EC2 com o Docker do app/modelo, outra EC2 com PostgreSQL em Docker e o CSV carregado no banco.
+*Pedido:* uma EC2 com o Docker do app/modelo, outra EC2 com PostgreSQL em Docker e o CSV carregado no banco.
 *Entrega:*
 * `infra/setup_db_ec2.sh` e `infra/db/init_customers.sql` sobem o Postgres e carregam o `churn.csv` bruto (`COPY 7043`).
 * `src/db.py` conecta via variáveis de ambiente.
