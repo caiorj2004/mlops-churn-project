@@ -320,7 +320,6 @@ streamlit run app_churn_v2.py
 ## 7. Observações
 
 * **Dependências parcialmente travadas:** o container de treino (`uv.lock`) e as bibliotecas do modelo na imagem da AWS (`models/champion/requirements.txt`) têm versões exatas; o `requirements.txt` do ambiente local e o `requirements-app.txt` declaram versões mínimas (`>=`).
-* **Remote DVC local:** o remote aponta para uma pasta da máquina de casa (`C:/Users/User/dvc_remote`); em outra máquina, o `dvc pull` não encontra os dados e o `churn.csv` precisa ser copiado manualmente.
 * **Testes:** a validação de dados tem um script de quebra proposital (`test_schema.py`), mas o projeto ainda não tem uma suíte `pytest`.
 * **Etapas do plano não implementadas neste repositório:** orquestração com Airflow, CI/CD com GitHub Actions e monitoramento de drift com Evidently (previstos na `grade-mlops-60h.md`).
 * **IP público das EC2:** muda a cada parada/início das instâncias. A comunicação entre as máquinas usa o IP privado e não é afetada.
