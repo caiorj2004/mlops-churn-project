@@ -28,11 +28,11 @@ def run_profiling():
         )
         profile.to_file("churn_profile_report.html")
         print(
-            "\n✅ Relatório HTML gerado com sucesso: churn_profile_report.html"
+            "\nRelatório HTML gerado com sucesso: churn_profile_report.html"
         )
     except ImportError:
         print(
-            "\n💡 Para gerar o relatório HTML completo, instale: pip install ydata-profiling"
+            "\nPara gerar o relatório HTML completo, instale: pip install ydata-profiling"
         )
 
 
