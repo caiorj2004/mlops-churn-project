@@ -16,7 +16,7 @@ O plano completo da disciplina está em [`grade-mlops-60h.md`](grade-mlops-60h.m
 4. [Um modelo, do treino à produção](#4-um-modelo-do-treino-à-produção)
 5. [Estrutura do repositório](#5-estrutura-do-repositório)
 6. [Como executar](#6-como-executar)
-7. [Limitações conhecidas](#7-limitações-conhecidas)
+7. [Observações](#7-observações)
 
 ---
 
@@ -274,7 +274,7 @@ Pré-requisitos: Python 3.11+, Git, DVC e Docker. Os comandos abaixo são do **P
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python -m dvc pull                       # baixa o churn.csv do remote DVC (veja a seção 7)
+python -m dvc pull                       # baixa o churn.csv do remote DVC
 ```
 
 **Pipeline modular dentro do container (Encontro 3)**

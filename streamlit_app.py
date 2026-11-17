@@ -6,7 +6,7 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="Painel MLOps - Predição de Churn", layout="wide")
 
-st.title("📊 Painel de Predição de Churn - MLOps")
+st.title("Painel de Predição de Churn - MLOps")
 st.markdown("Consulte previsões em tempo real e inspecione a governança do modelo **@champion**.")
 
 st.sidebar.header("Parâmetros de Entrada")
@@ -87,7 +87,7 @@ if btn_consultar:
                         st.write(f"- **Status de Produção:** `{champion.get('status', 'N/A')}`")
 
                     st.divider()
-                    st.subheader("📖 Explicação da Saída")
+                    st.subheader("Explicação da Saída")
                     st.markdown("""
                     - **Churn (Sim / 1):** Padrões contratuais e financeiros indicam alto risco de cancelamento.
                     - **No Churn (Não / 0):** O perfil do cliente indica retenção e estabilidade.
