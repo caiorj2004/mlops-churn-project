@@ -10,6 +10,8 @@ Variaveis:
     DB_NAME      nome do banco (padrao churn_db)
     DB_USER      usuario (padrao postgres)
     DB_PASSWORD  senha (obrigatoria, sem valor padrao)
+    DATABASE_URL opcional: URL SQLAlchemy completa que substitui as variaveis acima
+                 (ex.: sqlite:///data/churn_local.db no modo local sem Docker e nos testes)
 """
 import os
 from functools import lru_cache
@@ -44,8 +46,17 @@ def db_settings() -> dict:
     }
 
 
+def data_source() -> str:
+    """Nome do banco em uso, para as respostas da API ("postgresql" na arquitetura da AWS)."""
+    url_completa = os.getenv("DATABASE_URL")
+    return url_completa.split(":", 1)[0].split("+", 1)[0] if url_completa else "postgresql"
+
+
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
+    url_completa = os.getenv("DATABASE_URL")
+    if url_completa:
+        return create_engine(url_completa, pool_pre_ping=True)
     cfg = db_settings()
     if not cfg["password"]:
         raise RuntimeError("DB_PASSWORD nao definida. Configure o .env (veja .env.example).")

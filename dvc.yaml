@@ -1,3 +1,5 @@
+# ML Pipeline: dado (DVC) -> grid de experimentos (MLflow) -> @champion no registry -> pacote para o deploy.
+# `dvc repro` so refaz o que mudou; `dvc metrics show` mostra o resumo do grid.
 stages:
   treino_e_tuning:
     cmd: python -m src.experiments
@@ -6,8 +8,25 @@ stages:
       - src/experiments.py
       - src/features.py
       - src/data.py
-  
+      - src/schema.py
+    metrics:
+      - reports/grid_metricas.json:
+          cache: false
+
   promover_modelo:
     cmd: python -m src.register_model
     deps:
+      - reports/grid_metricas.json
       - src/register_model.py
+    outs:
+      - reports/champion_registrado.json:
+          cache: false
+
+  exportar_champion:
+    cmd: python -m src.export_champion
+    deps:
+      - reports/champion_registrado.json
+      - src/export_champion.py
+    outs:
+      - models/champion:
+          cache: false

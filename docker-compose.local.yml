@@ -1,0 +1,43 @@
+# Arquitetura da AWS (README, secao 2) reproduzida na sua maquina, sem conta na nuvem.
+#   db  -> EC2 churn-db-host : PostgreSQL 15 com a tabela `customers` carregada do churn.csv
+#   app -> EC2 churn-app-host: mesma imagem do ECR (Dockerfile): FastAPI :8000 + Streamlit :8501 via Supervisord
+# A conversa entre os dois usa a rede interna do compose (o papel do IP privado da VPC).
+#
+# Uso: python rodar_local.py   (baixa o dado, treina/exporta o @champion e sobe tudo)
+#      ou, com models/champion/ ja exportado: docker compose -f docker-compose.local.yml up --build
+services:
+  db:
+    image: postgres:15
+    container_name: churn_postgres_local
+    environment:
+      POSTGRES_DB: churn_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-churn_local}
+    volumes:
+      # mesmo DDL + \copy usados na EC2 (infra/setup_db_ec2.sh), executados na 1a subida do container
+      - ./infra/db/init_customers.sql:/docker-entrypoint-initdb.d/01_init_customers.sql:ro
+      - ./data/raw/churn.csv:/tmp/churn.csv:ro
+    ports:
+      - "${DB_PORT_LOCAL:-5432}:5432"   # para inspecionar com psql/DBeaver; troque se a 5432 ja estiver em uso
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d churn_db"]
+      interval: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: churn_app_local
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: churn_db
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-churn_local}
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy

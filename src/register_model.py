@@ -1,5 +1,10 @@
+import json
+from pathlib import Path
+
 import mlflow
 from mlflow.tracking import MlflowClient
+
+REGISTRO = Path("reports") / "champion_registrado.json"   # saida do estagio promover_modelo (dvc.yaml)
 
 def promote_best_model():
     # Conecta ao banco SQLite compartilhado
@@ -25,6 +30,13 @@ def promote_best_model():
 
     client = MlflowClient()
     client.set_registered_model_alias("churn-model", "champion", mv.version)
+
+    REGISTRO.parent.mkdir(exist_ok=True)
+    REGISTRO.write_text(json.dumps({
+        "model_name": "churn-model", "alias": "champion", "version": int(mv.version),
+        "run_id": best_run_id, "run_name": best_run.get("tags.mlflow.runName"),
+        "test_accuracy": round(float(best_acc), 4),
+    }, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"Modelo registrado como 'churn-model' (Versão {mv.version})")
     print("Alias '@champion' aplicado com sucesso! Pronto para deploy.")

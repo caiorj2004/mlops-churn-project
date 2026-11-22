@@ -6,6 +6,7 @@ treino (src/features.py), entao a previsao de um cliente aqui e identica a
 do modelo aplicado na base de treino.
 """
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import pandas as pd
 
 from src.features import features_for_inference
 
-CHAMPION_DIR = Path("models") / "champion"
+CHAMPION_DIR = Path(os.getenv("CHAMPION_DIR", str(Path("models") / "champion")))
 
 
 class ChampionModel:
@@ -44,7 +45,7 @@ class ChampionModel:
         }
 
     def model_summary(self) -> dict:
-        return {k: self.info.get(k) for k in ("model_name", "alias", "version", "run_name", "test_accuracy")}
+        return {k: self.info.get(k) for k in ("model_name", "alias", "version", "run_name", "test_accuracy", "test_roc_auc")}
 
 
 def risk_level(prob: float) -> str:

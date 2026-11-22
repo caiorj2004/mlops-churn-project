@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.db import db_settings, get_engine
+from src.db import data_source, db_settings, get_engine
 from src.inference import ChampionModel
 
 app = FastAPI(
@@ -50,9 +50,9 @@ def _fetch_customer(customer_id: str) -> dict:
         with get_engine().connect() as conn:
             row = conn.execute(QUERY_BY_ID, {"cid": customer_id}).mappings().first()
     except (SQLAlchemyError, RuntimeError) as exc:
-        raise HTTPException(status_code=503, detail=f"Banco PostgreSQL indisponivel: {exc}") from exc
+        raise HTTPException(status_code=503, detail=f"Banco ({data_source()}) indisponivel: {exc}") from exc
     if row is None:
-        raise HTTPException(status_code=404, detail=f"Cliente '{customer_id}' nao encontrado no PostgreSQL.")
+        raise HTTPException(status_code=404, detail=f"Cliente '{customer_id}' nao encontrado no banco ({data_source()}).")
     record = dict(row)
     # NUMERIC chega como Decimal; converte para float para serializar em JSON
     if record.get("MonthlyCharges") is not None:
@@ -100,7 +100,8 @@ def root():
 @app.get("/health")
 def health():
     cfg = db_settings()
-    db = {"host": cfg["host"], "port": cfg["port"], "database": cfg["database"]}
+    db = ({"host": cfg["host"], "port": cfg["port"], "database": cfg["database"]}
+          if data_source() == "postgresql" else {"engine": data_source()})
     try:
         with get_engine().connect() as conn:
             db["records"] = conn.execute(text("SELECT count(*) FROM customers")).scalar_one()
@@ -119,7 +120,7 @@ def model_info():
 @app.get("/customers/{customer_id}")
 def get_customer(customer_id: str):
     """Consulta pura: devolve o registro do cliente exatamente como esta no banco."""
-    return {"data_source": "postgresql", "customer": _fetch_customer(customer_id)}
+    return {"data_source": data_source(), "customer": _fetch_customer(customer_id)}
 
 
 @app.get("/results/{customer_id}")
@@ -140,7 +141,7 @@ def get_customer_score(customer_id: str):
         "monthly_charges": record["MonthlyCharges"],
         "total_charges": float(total),
         "tenure": record["tenure"],
-        "data_source": "postgresql",
+        "data_source": data_source(),
         "model": champion.model_summary(),
         "customer": record,
     }
