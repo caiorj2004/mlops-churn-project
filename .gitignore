@@ -15,3 +15,4 @@ data/batch_predictions.parquet
 .aws/
 *.pem
 credentials
+data/churn_local.db
