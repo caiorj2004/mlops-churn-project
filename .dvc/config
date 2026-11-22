@@ -1,4 +1,6 @@
 [core]
-    remote = local_remote
+    remote = repositorio
+['remote "repositorio"']
+    url = ../dvc-publico
 ['remote "local_remote"']
     url = C:/Users/Caio/dvc_remote
