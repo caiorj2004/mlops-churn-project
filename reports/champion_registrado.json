@@ -1,8 +1,0 @@
-{
-  "model_name": "churn-model",
-  "alias": "champion",
-  "version": 1,
-  "run_id": "ccf2de477d414cb0b1ce853c47737dcd",
-  "run_name": "rf-n200-d8",
-  "test_accuracy": 0.7729
-}
