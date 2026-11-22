@@ -16,3 +16,4 @@ data/batch_predictions.parquet
 *.pem
 credentials
 data/churn_local.db
+reports/

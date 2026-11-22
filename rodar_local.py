@@ -83,6 +83,8 @@ def garantir_modelo(pular: bool, forcar: bool) -> None:
             sys.exit("--pular-treino, mas models/champion/ nao existe. Rode sem essa opcao.")
         print("usando o models/champion/ existente")
         return
+    if not (RAIZ / "mlflow.db").exists():
+        forcar = True  # registry vazio (clone novo ou mlflow.db apagado): o grid precisa rodar de novo
     if tem_dvc():
         rodar([sys.executable, "-m", "dvc", "repro"] + (["--force"] if forcar else []))
     else:

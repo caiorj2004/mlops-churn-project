@@ -129,7 +129,7 @@ MonthlyCharges                   greater_than_or_equal_to(18.0)        -15.0
 * `src/train_mlflow.py`: treino com `mlflow.sklearn.autolog()` e tags de linhagem (`data_md5` do ponteiro DVC + `git_commit`).
 * `src/experiments.py`: **grid de 9 runs** (`n_estimators` ∈ {100, 200, 500} × `max_depth` ∈ {None, 8, 16}) no experimento `churn-prediction`, com backend SQLite (`mlflow.db`).
 
-Resultado do grid (teste com 20 % estratificado, `random_state=42`; também em `reports/grid_metricas.json` e em `dvc metrics show`):
+Resultado do grid (teste com 20 % estratificado, `random_state=42`; o `dvc repro` grava em `reports/grid_metricas.json`, visível com `dvc metrics show`):
 
 | run | n_estimators | max_depth | accuracy | ROC-AUC | precision | recall | F1 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -233,7 +233,7 @@ mlops-churn-project/
 ├── .dvc/config                ← remote DVC (local)
 ├── dvc.yaml                   ← pipeline DVC: treino_e_tuning → promover_modelo → exportar_champion
 ├── dvc-publico/               ← remote DVC `repositorio` (o churn.csv no layout do DVC), para o `dvc pull` funcionar em qualquer clone
-├── reports/                   ← métricas do grid e registro do @champion (saídas versionadas do dvc repro)
+├── reports/                   ← métricas do grid e registro do @champion (gerados pelo dvc repro; ignorados pelo Git, como o mlflow.db)
 │
 ├── rodar_local.py             ← arquitetura completa sem AWS, com um comando (Docker ou --sem-docker)
 ├── docker-compose.local.yml   ← as duas "EC2" como containers: PostgreSQL + app (mesmo Dockerfile da AWS)
@@ -281,7 +281,7 @@ mlops-churn-project/
 └── docs/img/                  ← evidências do painel em produção
 ```
 
-Artefatos gerados localmente e **ignorados pelo Git**: `mlflow.db`, `mlruns/`, `models/`, `data/batch_predictions.parquet`, `data/churn_local.db`, `.venv/`, `.env`.
+Artefatos gerados localmente e **ignorados pelo Git**: `mlflow.db`, `mlruns/`, `models/`, `data/batch_predictions.parquet`, `data/churn_local.db`, `reports/`, `.venv/`, `.env`. O `reports/` acompanha o `mlflow.db`: se um existir sem o outro, o `dvc repro` acharia que o grid já rodou; por isso os dois ficam fora do Git e o `rodar_local.py` força o grid quando não há `mlflow.db`.
 
 ---
 
