@@ -1,10 +1,17 @@
 # Previsão de Churn — Projeto Prático de MLOps
 
+[![CI](https://github.com/caiorj2004/mlops-churn-project/actions/workflows/ci.yml/badge.svg)](https://github.com/caiorj2004/mlops-churn-project/actions/workflows/ci.yml)
+
 Projeto da disciplina **Engenharia de Machine Learning Aplicada — princípios de MLOps** (IESB, Ciência de Dados e IA).
 
 O objetivo da disciplina não é a acurácia do modelo, e sim o **encanamento ao redor dele**. O ponto de partida é um script de churn que "só funciona na minha máquina" (`train_churn.py`, fornecido em aula); a cada encontro, uma dor de reprodutibilidade motiva uma ferramenta nova. O resultado é um sistema que valida e versiona os dados, rastreia experimentos, registra o melhor modelo e serve previsões em uma arquitetura de duas camadas na AWS.
 
 O plano completo da disciplina está em [`grade-mlops-60h.md`](grade-mlops-60h.md).
+
+> **Rodar tudo na sua máquina, sem AWS:** `pip install -r requirements.txt` e depois `python rodar_local.py`.
+> O script baixa o dado pelo DVC, roda o grid no MLflow, promove e exporta o `@champion` e sobe a arquitetura de duas camadas (PostgreSQL + app) com Docker.
+> Sem Docker: `python rodar_local.py --sem-docker` (SQLite no lugar do PostgreSQL). Detalhes na [seção 6](#6-como-executar).
+> A cada push, o [GitHub Actions](.github/workflows/ci.yml) refaz esse caminho do zero e roda os testes.
 
 ---
 
@@ -26,7 +33,7 @@ Classificação binária: prever se um cliente vai cancelar o serviço (`Churn =
 
 | Característica | Valor |
 | --- | --- |
-| Arquivo | `data/raw/churn.csv` (versionado com DVC, não com Git) |
+| Arquivo | `data/raw/churn.csv`: base sintética fornecida pelo professor da disciplina, versionada com DVC (no Git fica só o ponteiro). O remote padrão do DVC (`repositorio`) é a pasta `dvc-publico/` do próprio repositório, então `dvc pull` funciona para quem clonar. |
 | Linhas × colunas | 7.043 clientes × 21 colunas |
 | Identificador | `customerID` (único; ex.: `7000-QFVW`, `7015-DBER`) |
 | Alvo | `Churn`: 4.752 `No` / 2.291 `Yes` (**32,5 % de churn**) |
@@ -122,26 +129,31 @@ MonthlyCharges                   greater_than_or_equal_to(18.0)        -15.0
 * `src/train_mlflow.py`: treino com `mlflow.sklearn.autolog()` e tags de linhagem (`data_md5` do ponteiro DVC + `git_commit`).
 * `src/experiments.py`: **grid de 9 runs** (`n_estimators` ∈ {100, 200, 500} × `max_depth` ∈ {None, 8, 16}) no experimento `churn-prediction`, com backend SQLite (`mlflow.db`).
 
-Resultado do grid (acurácia no teste, 20 % estratificado, `random_state=42`):
+Resultado do grid (teste com 20 % estratificado, `random_state=42`; também em `reports/grid_metricas.json` e em `dvc metrics show`):
 
-| run | n_estimators | max_depth | test_accuracy |
-| --- | --- | --- | --- |
-| **rf-n200-d8** | 200 | 8 | **0,7729** |
-| rf-n500-d8 | 500 | 8 | 0,7715 |
-| rf-n100-d8 | 100 | 8 | 0,7715 |
-| rf-n100-d16 | 100 | 16 | 0,7672 |
-| rf-n500-d16 | 500 | 16 | 0,7594 |
-| rf-n500-dNone | 500 | None | 0,7559 |
-| rf-n200-d16 | 200 | 16 | 0,7559 |
-| rf-n100-dNone | 100 | None | 0,7523 |
-| rf-n200-dNone | 200 | None | 0,7502 |
+| run | n_estimators | max_depth | accuracy | ROC-AUC | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **rf-n200-d8** | 200 | 8 | **0,7729** | 0,8233 | 0,6788 | 0,5721 | 0,6209 |
+| rf-n500-d8 | 500 | 8 | 0,7715 | 0,8233 | 0,6771 | 0,5677 | 0,6176 |
+| rf-n100-d8 | 100 | 8 | 0,7715 | 0,8205 | 0,6780 | 0,5655 | 0,6167 |
+| rf-n100-d16 | 100 | 16 | 0,7672 | 0,8107 | 0,6633 | 0,5764 | 0,6168 |
+| rf-n500-d16 | 500 | 16 | 0,7594 | 0,8122 | 0,6448 | 0,5786 | 0,6099 |
+| rf-n500-dNone | 500 | None | 0,7559 | 0,8078 | 0,6404 | 0,5677 | 0,6019 |
+| rf-n200-d16 | 200 | 16 | 0,7559 | 0,8112 | 0,6411 | 0,5655 | 0,6009 |
+| rf-n100-dNone | 100 | None | 0,7523 | 0,8035 | 0,6416 | 0,5393 | 0,5860 |
+| rf-n200-dNone | 200 | None | 0,7502 | 0,8046 | 0,6338 | 0,5480 | 0,5878 |
 
 `max_depth=8` domina; árvores mais profundas pioram (overfitting).
+
+**Por que olhar além da acurácia.** Com 32,5 % de churn, um modelo que dissesse "não cancela" para todos já teria 67,5 % de acurácia. O `@champion` é escolhido por acurácia (critério fixado na disciplina), mas o grid registra também ROC-AUC, precisão, recall e F1. O ROC-AUC de 0,82 mostra boa separação entre as classes; o recall de 0,57 mostra que, com o limiar padrão de 0,5, o modelo deixa passar 43 % dos clientes que cancelam. Num uso real, o limiar seria ajustado ao custo de perder um cliente versus o custo de uma ação de retenção. Melhorar o modelo não era o objetivo da disciplina.
 
 **Encontro 7 · Model Registry.**
 *Entrega:* `src/register_model.py` busca o melhor run por código (`mlflow.search_runs` ordenado por `test_accuracy`), registra-o como **`churn-model`** e aponta o alias **`@champion`** para essa versão. `src/test_champion.py` consome o modelo pela URI estável `models:/churn-model@champion` (flavor `pyfunc`). A cadeia de linhagem fica completa: dado (DVC) → código (Git) → experimento (MLflow) → modelo (`@champion`).
 
-**Orquestração do ML Pipeline com DVC.** `dvc.yaml` declara duas etapas, `treino_e_tuning` (`python -m src.experiments`) e `promover_modelo` (`python -m src.register_model`), executadas com `dvc repro`.
+**Orquestração do ML Pipeline com DVC.** `dvc.yaml` declara três etapas encadeadas por arquivos, executadas com `dvc repro`, que só refaz o que mudou:
+`treino_e_tuning` (`python -m src.experiments` → `reports/grid_metricas.json`, declarado como métrica do DVC) →
+`promover_modelo` (`python -m src.register_model` → `reports/champion_registrado.json`) →
+`exportar_champion` (`python -m src.export_champion` → `models/champion/`).
 
 ### Serviço do modelo
 
@@ -219,7 +231,14 @@ mlops-churn-project/
 │   ├── churn.csv.dvc          ← ponteiro DVC do dataset (o CSV em si não vai para o Git)
 │   └── .gitignore
 ├── .dvc/config                ← remote DVC (local)
-├── dvc.yaml                   ← pipeline DVC: treino_e_tuning → promover_modelo
+├── dvc.yaml                   ← pipeline DVC: treino_e_tuning → promover_modelo → exportar_champion
+├── dvc-publico/               ← remote DVC `repositorio` (o churn.csv no layout do DVC), para o `dvc pull` funcionar em qualquer clone
+├── reports/                   ← métricas do grid e registro do @champion (saídas versionadas do dvc repro)
+│
+├── rodar_local.py             ← arquitetura completa sem AWS, com um comando (Docker ou --sem-docker)
+├── docker-compose.local.yml   ← as duas "EC2" como containers: PostgreSQL + app (mesmo Dockerfile da AWS)
+├── tests/                     ← pytest: contrato de dados, contrato de features e API v2 (SQLite)
+├── .github/workflows/ci.yml   ← CI: dvc pull → pytest → dvc repro → docker compose + chamada à API
 │
 ├── run_pipeline.py            ← Bloco 0: pipeline modular (validar → features → treinar → avaliar → salvar)
 ├── test_schema.py             ← Bloco 1: quebra proposital do contrato Pandera
@@ -262,13 +281,35 @@ mlops-churn-project/
 └── docs/img/                  ← evidências do painel em produção
 ```
 
-Artefatos gerados localmente e **ignorados pelo Git**: `mlflow.db`, `mlruns/`, `models/`, `data/batch_predictions.parquet`, `.venv/`, `.env`.
+Artefatos gerados localmente e **ignorados pelo Git**: `mlflow.db`, `mlruns/`, `models/`, `data/batch_predictions.parquet`, `data/churn_local.db`, `.venv/`, `.env`.
 
 ---
 
 ## 6. Como executar
 
 Pré-requisitos: Python 3.11+, Git, DVC e Docker. Os comandos abaixo são do **PowerShell (Windows)**, na raiz do projeto.
+
+### Tudo de uma vez, sem AWS
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python rodar_local.py                # Docker: PostgreSQL + app, como nas duas EC2
+python rodar_local.py --sem-docker   # sem Docker: SQLite + API + painel como processos locais
+python rodar_local.py --parar        # derruba os containers
+```
+
+O script faz, nesta ordem e só quando necessário:
+1. **Dado:** `dvc pull` do remote `repositorio` e conferência do MD5 contra o ponteiro `data/raw/churn.csv.dvc`.
+2. **ML:** `dvc repro` (grid de 9 runs no MLflow → `@champion` → `models/champion/`). Use `--pular-treino` para reaproveitar o modelo exportado ou `--retreinar` para forçar.
+3. **Serviço:** `docker-compose.local.yml` sobe o PostgreSQL com o mesmo `infra/db/init_customers.sql` da EC2 de banco e a app com o mesmo `Dockerfile` da imagem do ECR. A rede interna do compose faz o papel do IP privado da VPC.
+
+Ao final: painel em http://127.0.0.1:8501, API em http://127.0.0.1:8000/docs e um teste em http://127.0.0.1:8000/results/7015-DBER (probabilidade 0,4716, classe 0, churn real `Yes`).
+
+**Testes:** `pytest` (contrato de dados, contrato de features e API v2 com SQLite; não precisam de AWS nem de PostgreSQL).
+
+### Passo a passo (como na disciplina)
 
 ```powershell
 python -m venv .venv
@@ -320,6 +361,8 @@ streamlit run app_churn_v2.py
 ## 7. Observações
 
 * **Dependências parcialmente travadas:** o container de treino (`uv.lock`) e as bibliotecas do modelo na imagem da AWS (`models/champion/requirements.txt`) têm versões exatas; o `requirements.txt` do ambiente local e o `requirements-app.txt` declaram versões mínimas (`>=`).
-* **Testes:** a validação de dados tem um script de quebra proposital (`test_schema.py`), mas o projeto ainda não tem uma suíte `pytest`.
-* **Etapas do plano não implementadas neste repositório:** orquestração com Airflow, CI/CD com GitHub Actions e monitoramento de drift com Evidently (previstos na `grade-mlops-60h.md`).
+* **Testes e CI:** suíte `pytest` em `tests/` (10 testes) e GitHub Actions a cada push/PR: `dvc pull` → `pytest` → `dvc repro` → `docker compose` com PostgreSQL + app e uma chamada real à API. O `test_schema.py` do Encontro 4 continua como demonstração.
+* **AWS desligada:** as EC2 da disciplina não ficam no ar. A mesma arquitetura roda localmente com `rodar_local.py` (seção 6); os scripts de `infra/` continuam documentando o deploy na nuvem.
+* **MLflow 3:** com `mlflow>=3`, o `autolog` não grava mais o artefato `model` e o formato padrão passou a ser o skops. O grid agora grava o modelo explicitamente (`log_model`, formato pickle), o que funciona no MLflow 2 e no 3.
+* **Etapas do plano não implementadas neste repositório:** orquestração com Airflow, CD (deploy automático) e monitoramento de drift com Evidently (previstos na `grade-mlops-60h.md`). A CI com GitHub Actions foi adicionada depois da disciplina.
 * **IP público das EC2:** muda a cada parada/início das instâncias. A comunicação entre as máquinas usa o IP privado e não é afetada.
