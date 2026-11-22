@@ -1,0 +1,54 @@
+# CI: a cada push/PR, refaz o projeto do zero numa maquina limpa do GitHub.
+#   1. dado     : dvc pull (remote `repositorio`, dentro do proprio repo) + conferencia do MD5
+#   2. testes   : pytest (contrato de dados, contrato de features, API v2 com SQLite)
+#   3. ML       : dvc repro (grid MLflow -> @champion -> export) + dvc metrics show
+#   4. servico  : docker compose com PostgreSQL + app, e uma chamada real a API
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MLFLOW_DISABLE_TELEMETRY: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Dependencias
+        run: pip install -r requirements.txt
+
+      - name: Dado versionado (dvc pull)
+        run: dvc pull
+
+      - name: Testes
+        run: pytest -q
+
+      - name: ML Pipeline (dvc repro)
+        run: |
+          dvc repro
+          dvc metrics show
+
+      - name: Arquitetura em duas camadas (docker compose)
+        run: |
+          python rodar_local.py --pular-treino
+          curl -sf http://127.0.0.1:8000/results/7015-DBER | python -m json.tool
+          curl -sf -o /dev/null http://127.0.0.1:8501
+
+      - name: Logs dos containers (se falhar)
+        if: failure()
+        run: docker compose -f docker-compose.local.yml logs
+
+      - name: Derruba os containers
+        if: always()
+        run: docker compose -f docker-compose.local.yml down
