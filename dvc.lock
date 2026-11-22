@@ -1,0 +1,63 @@
+schema: '2.0'
+stages:
+  treino_e_tuning:
+    cmd: python -m src.experiments
+    deps:
+    - path: data/raw/churn.csv
+      hash: md5
+      md5: d390bd07b5514a2256a2396993b8b0e3
+      size: 981685
+    - path: src/data.py
+      hash: md5
+      md5: 0884a0ae3451d75e7174646db61ddeff
+      size: 806
+    - path: src/experiments.py
+      hash: md5
+      md5: 4119cb05449c22913b70df8ee31fa560
+      size: 4085
+    - path: src/features.py
+      hash: md5
+      md5: 90844b0f38a528f7370f7f8c0a3af739
+      size: 4381
+    - path: src/schema.py
+      hash: md5
+      md5: 345e1ab0a85b452bdff7e77c9742e968
+      size: 984
+    outs:
+    - path: reports/grid_metricas.json
+      hash: md5
+      md5: 0f150856ca6ecb90d39b8fe70cd04071
+      size: 2392
+  promover_modelo:
+    cmd: python -m src.register_model
+    deps:
+    - path: reports/grid_metricas.json
+      hash: md5
+      md5: 0f150856ca6ecb90d39b8fe70cd04071
+      size: 2392
+    - path: src/register_model.py
+      hash: md5
+      md5: e0cb7fd08b523a3eeccf79c5e0279da3
+      size: 1584
+    outs:
+    - path: reports/champion_registrado.json
+      hash: md5
+      md5: e43d812dbf09fcb3bdf8e82bc3fa98a1
+      size: 175
+  exportar_champion:
+    cmd: python -m src.export_champion
+    deps:
+    - path: reports/champion_registrado.json
+      hash: md5
+      md5: e43d812dbf09fcb3bdf8e82bc3fa98a1
+      size: 175
+    - path: src/export_champion.py
+      hash: md5
+      md5: e95008d3177dc86b5e279bcd3764027b
+      size: 3159
+    outs:
+    - path: models/champion
+      hash: md5
+      md5: 13e5cae8322f6901f47a01c3f9135aba.dir
+      size: 5649066
+      nfiles: 7
