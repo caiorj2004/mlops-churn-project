@@ -5,7 +5,7 @@ API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="App Churn v1 - Consulta em Lote", layout="wide")
 
-st.title("📋 Painel de Consulta de Scores de Churn (v1)")
+st.title("Painel de Consulta de Scores de Churn (v1)")
 st.caption("Arquitetura AWS com Container Unificado (FastAPI + Streamlit via Supervisord)")
 
 st.sidebar.header("Consulta de Resultados")

@@ -7,7 +7,7 @@ API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 st.set_page_config(page_title="App Churn v2 - Two-Tier", layout="wide")
 
-st.title("📊 Painel de Retenção de Clientes (v2)")
+st.title("Painel de Retenção de Clientes (v2)")
 st.caption("Arquitetura em duas camadas: aplicação + modelo numa EC2, PostgreSQL em Docker em outra EC2")
 
 
@@ -21,7 +21,7 @@ def legenda_modelo(resposta: dict) -> str:
 # =========================================================================
 # BLOCO 1: CONSULTA POR CODIGO NO POSTGRESQL (camada de dados - 2a EC2)
 # =========================================================================
-st.subheader("🔍 1. Consulta de Cliente no Banco (PostgreSQL)")
+st.subheader("1. Consulta de Cliente no Banco (PostgreSQL)")
 c_id_col, c_btn_col = st.columns([3, 1])
 
 with c_id_col:
@@ -66,7 +66,7 @@ st.divider()
 # =========================================================================
 # BLOCO 2: NOVA INFERÊNCIA EM TEMPO REAL (Online Serving)
 # =========================================================================
-st.subheader("⚡ 2. Nova Inferência em Tempo Real (Simulação de Novo Cliente)")
+st.subheader("2. Nova Inferência em Tempo Real (Simulação de Novo Cliente)")
 st.caption("Preencha os parametros abaixo para executar uma chamada ativa no modelo de Machine Learning:")
 
 with st.form("form_nova_inferencia"):
@@ -95,7 +95,7 @@ with st.form("form_nova_inferencia"):
         device_prot = st.selectbox("Protecao de Dispositivo", ["No", "Yes", "No internet service"])
         senior = st.selectbox("Cliente Idoso (SeniorCitizen)", ["0", "1"])
 
-    btn_predict = st.form_submit_button("⚡ Fazer Chamada no Modelo", type="primary", use_container_width=True)
+    btn_predict = st.form_submit_button("Fazer Chamada no Modelo", type="primary", use_container_width=True)
 
 if btn_predict:
     payload = {
